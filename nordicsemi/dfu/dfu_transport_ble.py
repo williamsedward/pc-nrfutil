@@ -163,7 +163,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.target_device_addr = target_device_addr
 
         logger.info('BLE: Scanning for {} or {}'.format(self.target_device_name, self.target_device_addr))
-        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=50, window_ms=200, timeout_s=10) )
+        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=200, window_ms=200, timeout_s=10) )
         # default BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
         self.verify_stable_connection()
         if self.conn_handle is None:
@@ -252,7 +252,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             True if connected, else False.
 
         """
-        self.conn_handle = self.evt_sync.wait('connected', timeout=100)
+        self.conn_handle = self.evt_sync.wait('connected', timeout=55)
         if self.conn_handle is not None:
             retries = DFUAdapter.CONNECTION_ATTEMPTS
             while retries:
@@ -414,7 +414,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
-            self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
+            self.conn_params = BLEGapConnParams(min_conn_interval_ms = 5,
                                                 max_conn_interval_ms = 30,
                                                 conn_sup_timeout_ms  = 4000,
                                                 slave_latency        = 0)
