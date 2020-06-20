@@ -163,7 +163,8 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.target_device_addr = target_device_addr
 
         logger.info('BLE: Scanning for {} or {}'.format(self.target_device_name, self.target_device_addr))
-        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=480, window_ms=430, timeout_s=1) )
+        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=50, window_ms=200, timeout_s=10) )
+        # default BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
         self.verify_stable_connection()
         if self.conn_handle is None:
             raise NordicSemiException('Timeout. Target device not found.')
@@ -251,7 +252,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             True if connected, else False.
 
         """
-        self.conn_handle = self.evt_sync.wait('connected', timeout=55)
+        self.conn_handle = self.evt_sync.wait('connected', timeout=100)
         if self.conn_handle is not None:
             retries = DFUAdapter.CONNECTION_ATTEMPTS
             while retries:
@@ -273,7 +274,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             logger.info("Successfully Connected")
             return
 
-        self.adapter.driver.ble_gap_scan_stop()
+        # self.adapter.driver.ble_gap_scan_stop()
         self.close()
         
         raise Exception("Connection Failure - Device not found!")
