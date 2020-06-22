@@ -414,7 +414,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
-            self.conn_params = BLEGapConnParams(min_conn_interval_ms = 5,
+            self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
                                                 max_conn_interval_ms = 30,
                                                 conn_sup_timeout_ms  = 4000,
                                                 slave_latency        = 0)
