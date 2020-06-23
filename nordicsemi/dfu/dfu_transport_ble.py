@@ -390,6 +390,45 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.conn_handle = None
         logger.info('BLE: Disconnected with reason: {}'.format(reason))
 
+    def decode_klk_data(klk_data):
+        uint8_t = 2
+        uint16_t = 4
+
+        klk_data_structure_dict = {
+            "protocol_type": uint8_t,
+            "device_type": uint8_t,
+            "software_version": uint16_t,
+            "param_crc": uint16_t,
+            "vbat_mv": uint16_t,
+            "nb_entry": uint16_t,
+            "oldest_entry": uint16_t,
+            "cur_time": uint16_t
+        }
+
+        decoded_klk_data = []
+        start = 0
+        end = 0
+        for x in klk_data_structure_dict:
+            end += klk_data_structure_dict[x]
+            hexbytes = klk_data[start:end]
+            
+            if x == "param_crc":
+                if hexbytes == "A250":
+                    value = "STORAGE"
+                elif hexbytes == "CFEC":
+                    value = "NOMINAL"
+                else:
+                    value = hexbytes
+            elif x == "software_version":
+                value = "{}.{}".format(hexbytes[0:2], hexbytes[2:4])
+            else:
+                value = str(int(hexbytes, 16))
+
+            decoded_klk_data.append("{}:{}".format(x, value))
+            start = end
+
+        return '\n'.join(decoded_klk_data)
+
     def on_gap_evt_adv_report(self, ble_driver, conn_handle, peer_addr, rssi, adv_type, adv_data):
         dev_name_list = []
         if BLEAdvData.Types.complete_local_name in adv_data.records:
@@ -412,6 +451,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         else:
             klk_data_string = "".join("{0:02X}".format(b) for b in klk_data)
             logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
+            print('{}'.format(decode_klk_data(klk_data_string)))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
             self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
@@ -424,7 +464,6 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
                                                 # max_conn_interval_ms=30,
                                                 # conn_sup_timeout_ms=4000,
                                                 # slave_latency=0,
-        )
             logger.info('BLE: Found target advertiser, address: 0x{}, name: {}'.format(address_string, dev_name))
             logger.info('BLE: Connecting to 0x{}'.format(address_string))
             # Connect must specify tag=1 to enable the settings
@@ -541,6 +580,7 @@ class DfuTransportBle(DfuTransport):
             if len(init_packet) > response['offset']:
                 # Send missing part.
                 try:
+                    self
                     self.__stream_data(data     = init_packet[response['offset']:],
                                        crc      = expected_crc,
                                        offset   = response['offset'])
