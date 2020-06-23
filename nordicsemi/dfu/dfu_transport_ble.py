@@ -163,8 +163,8 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.target_device_addr = target_device_addr
 
         logger.info('BLE: Scanning for {} or {}'.format(self.target_device_name, self.target_device_addr))
-        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=200, window_ms=200, timeout_s=10) )
-        # default BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
+        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=350, window_ms=250, timeout_s=10) )
+        # default ble_driver.py BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
         self.verify_stable_connection()
         if self.conn_handle is None:
             raise NordicSemiException('Timeout. Target device not found.')
@@ -418,6 +418,13 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
                                                 max_conn_interval_ms = 30,
                                                 conn_sup_timeout_ms  = 4000,
                                                 slave_latency        = 0)
+                                                # default ble_driver.py
+                                                # BLEGapConnParams(
+                                                # min_conn_interval_ms=15,
+                                                # max_conn_interval_ms=30,
+                                                # conn_sup_timeout_ms=4000,
+                                                # slave_latency=0,
+        )
             logger.info('BLE: Found target advertiser, address: 0x{}, name: {}'.format(address_string, dev_name))
             logger.info('BLE: Connecting to 0x{}'.format(address_string))
             # Connect must specify tag=1 to enable the settings
