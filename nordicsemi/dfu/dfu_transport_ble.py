@@ -163,8 +163,9 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.target_device_addr = target_device_addr
 
         logger.info('BLE: Scanning for {} or {}'.format(self.target_device_name, self.target_device_addr))
-        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=350, window_ms=250, timeout_s=10) )
+        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=380, window_ms=330, timeout_s=0) )
         # default ble_driver.py BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
+        # yannic ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=480, window_ms=430, timeout_s=0)
         self.verify_stable_connection()
         if self.conn_handle is None:
             raise NordicSemiException('Timeout. Target device not found.')
