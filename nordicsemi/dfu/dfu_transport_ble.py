@@ -390,7 +390,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.conn_handle = None
         logger.info('BLE: Disconnected with reason: {}'.format(reason))
 
-    def decode_klk_data(klk_data):
+    def decode_klk_data(self, klk_data):
         uint8_t = 2
         uint16_t = 4
 
@@ -451,7 +451,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         else:
             klk_data_string = "".join("{0:02X}".format(b) for b in klk_data)
             logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
-            print('{}'.format(decode_klk_data(klk_data_string)))
+            print('{}'.format(self.decode_klk_data(klk_data_string)))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
             self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
