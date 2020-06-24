@@ -395,6 +395,11 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         uint8_t = 2
         uint16_t = 4
 
+        v_1_1_storage = "220B"
+        v_1_6_storage = "A250"
+
+        v_1_6_nominal = "CFEC"
+
         klk_data_structure_dict = {
             "protocol_type": uint8_t,
             "device_type": uint8_t,
@@ -414,9 +419,9 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             hexbytes = klk_data[start:end]
             
             if x == "param_crc":
-                if hexbytes == "A250":
+                if hexbytes == v_1_6_storage || hexbytes == v_1_1_storage:
                     value = "STORAGE"
-                elif hexbytes == "CFEC":
+                elif hexbytes == v_1_6_nominal:
                     value = "NOMINAL"
                 else:
                     value = hexbytes
@@ -452,7 +457,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         else:
             klk_data_string = "".join("{0:02X}".format(b) for b in klk_data)
             logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
-            print('{}'.format(self.decode_klk_data(klk_data_string)))
+            logger.info('{}'.format(self.decode_klk_data(klk_data_string)))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
             self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
