@@ -57,6 +57,18 @@ from pc_ble_driver_py import config
 global nrf_sd_ble_api_ver
 nrf_sd_ble_api_ver = config.sd_api_ver_get()
 
+from pc_ble_driver_py.ble_driver import (
+    BLEDriver,
+    BLEAdvData,
+    BLEEvtID,
+    BLEEnableParams,
+    BLEGapTimeoutSrc,
+    BLEUUID,
+    BLEGapScanParams,
+    BLEConfigCommon,
+    BLEConfig,
+    BLEConfigConnGatt,
+)
 
 class ValidationException(NordicSemiException):
     """"
@@ -79,9 +91,11 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
     CP_UUID     = BLEUUID(0x0001, BASE_UUID)
     DP_UUID     = BLEUUID(0x0002, BASE_UUID)
 
-    CONNECTION_ATTEMPTS   = 3
+    CONNECTION_ATTEMPTS   = 1000
+    #CONNECTION_ATTEMPTS   = 3
     ERROR_CODE_POS        = 2
     LOCAL_ATT_MTU         = 247
+    #LOCAL_ATT_MTU         = 23
 
     def __init__(self, adapter, bonded=False, keyset=None):
         super().__init__()
@@ -148,8 +162,10 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         self.target_device_name = target_device_name
         self.target_device_addr = target_device_addr
 
-        logger.info('BLE: Scanning for {}'.format(self.target_device_name))
-        self.adapter.driver.ble_gap_scan_start()
+        logger.info('BLE: Scanning for {} or {}'.format(self.target_device_name, self.target_device_addr))
+        self.adapter.driver.ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=380, window_ms=330, timeout_s=0) )
+        # default ble_driver.py BLEGapScanParams(interval_ms=200, window_ms=150, timeout_s=10)
+        # yannic ble_gap_scan_start( scan_params=BLEGapScanParams(interval_ms=480, window_ms=430, timeout_s=0)
         self.verify_stable_connection()
         if self.conn_handle is None:
             raise NordicSemiException('Timeout. Target device not found.')
@@ -237,7 +253,7 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             True if connected, else False.
 
         """
-        self.conn_handle = self.evt_sync.wait('connected')
+        self.conn_handle = self.evt_sync.wait('connected', timeout=55)
         if self.conn_handle is not None:
             retries = DFUAdapter.CONNECTION_ATTEMPTS
             while retries:
@@ -259,7 +275,9 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
             logger.info("Successfully Connected")
             return
 
-        self.adapter.driver.ble_gap_scan_stop()
+        # self.adapter.driver.ble_gap_scan_stop()
+        self.close()
+        
         raise Exception("Connection Failure - Device not found!")
 
     def setup_keyset(self):
@@ -367,8 +385,55 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
 
     def on_gap_evt_disconnected(self, ble_driver, conn_handle, reason):
         self.evt_sync.notify(evt = 'disconnected', data = conn_handle)
+        if str(reason) == 'BLEHci.connection_timeout':
+            self.close()
+            logger.info('BLE: Close COM port')
         self.conn_handle = None
         logger.info('BLE: Disconnected with reason: {}'.format(reason))
+
+    def decode_klk_data(self, klk_data):
+        uint8_t = 2
+        uint16_t = 4
+
+        v_1_1_storage = "220B"
+        v_1_6_storage = "A250"
+
+        v_1_6_nominal = "CFEC"
+
+        klk_data_structure_dict = {
+            "protocol_type": uint8_t,
+            "device_type": uint8_t,
+            "software_version": uint16_t,
+            "param_crc": uint16_t,
+            "vbat_mv": uint16_t,
+            "nb_entry": uint16_t,
+            "oldest_entry": uint16_t,
+            "cur_time": uint16_t
+        }
+
+        decoded_klk_data = []
+        start = 0
+        end = 0
+        for x in klk_data_structure_dict:
+            end += klk_data_structure_dict[x]
+            hexbytes = klk_data[start:end]
+            
+            if x == "param_crc":
+                if hexbytes == v_1_6_storage || hexbytes == v_1_1_storage:
+                    value = "STORAGE"
+                elif hexbytes == v_1_6_nominal:
+                    value = "NOMINAL"
+                else:
+                    value = hexbytes
+            elif x == "software_version":
+                value = "{}.{}".format(hexbytes[0:2], hexbytes[2:4])
+            else:
+                value = str(int(hexbytes, 16))
+
+            decoded_klk_data.append("{}:{}".format(x, value))
+            start = end
+
+        return '\n'.join(decoded_klk_data)
 
     def on_gap_evt_adv_report(self, ble_driver, conn_handle, peer_addr, rssi, adv_type, adv_data):
         dev_name_list = []
@@ -378,15 +443,33 @@ class DFUAdapter(BLEDriverObserver, BLEAdapterObserver):
         elif BLEAdvData.Types.short_local_name in adv_data.records:
             dev_name_list = adv_data.records[BLEAdvData.Types.short_local_name]
 
+        klk_data = None
+        if BLEAdvData.Types.manufacturer_specific_data in adv_data.records:
+            manuf_spec_data = adv_data.records[BLEAdvData.Types.manufacturer_specific_data]
+            if manuf_spec_data[0] == 0xFF and manuf_spec_data[1] == 0xFF :
+                klk_data = manuf_spec_data[2:]
+
         dev_name        = "".join(chr(e) for e in dev_name_list)
         address_string  = "".join("{0:02X}".format(b) for b in peer_addr.addr)
-        logger.info('Received advertisement report, address: 0x{}, device_name: {}'.format(address_string, dev_name))
+        if klk_data == None:
+            # logger.info('Received adv report, address: 0x{}, device_name: {}, rssi: {}'.format(address_string, dev_name, rssi))
+            pass
+        else:
+            klk_data_string = "".join("{0:02X}".format(b) for b in klk_data)
+            logger.info('Received KLK adv report, address: 0x{}, device_name: {}, rssi: {}, KLK_data: {}'.format(address_string, dev_name, rssi, klk_data_string))
+            logger.info('{}'.format(self.decode_klk_data(klk_data_string)))
 
         if (dev_name == self.target_device_name) or (address_string == self.target_device_addr):
             self.conn_params = BLEGapConnParams(min_conn_interval_ms = 7.5,
                                                 max_conn_interval_ms = 30,
                                                 conn_sup_timeout_ms  = 4000,
                                                 slave_latency        = 0)
+                                                # default ble_driver.py
+                                                # BLEGapConnParams(
+                                                # min_conn_interval_ms=15,
+                                                # max_conn_interval_ms=30,
+                                                # conn_sup_timeout_ms=4000,
+                                                # slave_latency=0,
             logger.info('BLE: Found target advertiser, address: 0x{}, name: {}'.format(address_string, dev_name))
             logger.info('BLE: Connecting to 0x{}'.format(address_string))
             # Connect must specify tag=1 to enable the settings
@@ -503,6 +586,7 @@ class DfuTransportBle(DfuTransport):
             if len(init_packet) > response['offset']:
                 # Send missing part.
                 try:
+                    self
                     self.__stream_data(data     = init_packet[response['offset']:],
                                        crc      = expected_crc,
                                        offset   = response['offset'])
